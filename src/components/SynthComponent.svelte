@@ -145,6 +145,53 @@
 		</div>
 
 		<div class="control-group">
+			<span class="control-label">
+				Attack: {synthConfig.envelope.attack.toFixed(2)} s
+			</span>
+			<input
+				type="range"
+				min="0.01"
+				max="2"
+				step="0.01"
+				bind:value={synthConfig.envelope.attack}
+				on:input={notifyChange}
+			/>
+			<span class="control-label">
+				Decay: {synthConfig.envelope.decay.toFixed(2)} s
+			</span>
+			<input
+				type="range"
+				min="0.01"
+				max="2"
+				step="0.01"
+				bind:value={synthConfig.envelope.decay}
+				on:input={notifyChange}
+			/>
+			<span class="control-label">
+				Sustain: {(synthConfig.envelope.sustain * 100).toFixed(0)} %
+			</span>
+			<input
+				type="range"
+				min="0"
+				max="1"
+				step="0.01"
+				bind:value={synthConfig.envelope.sustain}
+				on:input={notifyChange}
+			/>
+			<span class="control-label">
+				Release: {synthConfig.envelope.release.toFixed(2)} s
+			</span>
+			<input
+				type="range"
+				min="0.01"
+				max="5"
+				step="0.01"
+				bind:value={synthConfig.envelope.release}
+				on:input={notifyChange}
+			/>
+		</div>
+
+		<div class="control-group">
 			<span class="control-label"
 				>Filter Cutoff: {synthConfig.filterCutoff} Hz</span
 			>

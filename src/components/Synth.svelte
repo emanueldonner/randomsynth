@@ -6,6 +6,7 @@
 		getTransport,
 		Channel,
 		Loop,
+		Envelope,
 		Filter,
 		Reverb,
 		PingPongDelay,
@@ -91,9 +92,11 @@
 			probability: 0.4,
 			velocityIsProbability: false,
 			velocity: 0.5,
+
 			filterCutoff: 20000,
 			filterQ: 1,
 			filter: null,
+			envelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.3 },
 			isMuted: false,
 			isActive: false,
 			glowIntensity: 0,
@@ -116,9 +119,11 @@
 			probability: 0.8,
 			velocityIsProbability: false,
 			velocity: 0.5,
+
 			filterCutoff: 20000,
 			filterQ: 1,
 			filter: null,
+			envelope: { attack: 0.005, decay: 0.15, sustain: 0.4, release: 0.25 },
 			isMuted: false,
 			isActive: false,
 			glowIntensity: 0,
@@ -141,9 +146,11 @@
 			probability: 0.7,
 			velocityIsProbability: false,
 			velocity: 0.5,
+
 			filterCutoff: 20000,
 			filterQ: 1,
 			filter: null,
+			envelope: { attack: 0.02, decay: 0.3, sustain: 0.6, release: 0.4 },
 			isMuted: false,
 			isActive: false,
 			glowIntensity: 0,
@@ -264,9 +271,13 @@
 					"connected to:",
 					globalDelay
 				)
-				// Create synth with default oscillator type
+				// Create synth with default oscillator type and envelope
 				const oscillatorType = config.shape || "sine"
-				config.instance = new Synth()
+				config.instance = new Synth({
+					oscillator: { type: oscillatorType },
+					envelope: config.envelope,
+				})
+
 				// Create filter node (lowpass). If cutoff <= 20 treat as bypass (skip attaching).
 				if (!config.filter) {
 					if (config.filterCutoff && config.filterCutoff > 20) {
@@ -289,20 +300,8 @@
 				console.log(
 					`Connected ${config.name} to channel, sendGain, and delayGain`
 				)
-				// Set oscillator type after instance is created
-				try {
-					config.instance.set({ oscillator: { type: oscillatorType } })
-					console.log(
-						`Successfully set oscillator type to ${oscillatorType} for ${config.name}`
-					)
-					applyShapeComp(config)
-				} catch (e) {
-					console.error(
-						`Error setting oscillator type for ${config.name}:`,
-						e,
-						config
-					)
-				}
+				// Apply loudness compensation after creation
+				applyShapeComp(config)
 			}
 			// ensure send gain reflects current reverbSend and delaySend
 			if (config.sendGain) config.sendGain.gain.value = config.reverbSend
@@ -343,13 +342,22 @@
 		if (config.maxOctave < config.minOctave) {
 			config.minOctave = config.maxOctave
 		}
-		// Update oscillator shape
-		if (config.instance && config.shape) {
+		// Update oscillator & envelope via set (Tone handles immutable envelope object internally)
+		if (config.instance) {
 			try {
-				config.instance.set({ oscillator: { type: config.shape } })
-				applyShapeComp(config)
+				const setObj = {}
+				if (config.shape) setObj.oscillator = { type: config.shape }
+				if (config.envelope)
+					setObj.envelope = {
+						attack: config.envelope.attack,
+						decay: config.envelope.decay,
+						sustain: config.envelope.sustain,
+						release: config.envelope.release,
+					}
+				if (Object.keys(setObj).length) config.instance.set(setObj)
+				if (config.shape) applyShapeComp(config)
 			} catch (e) {
-				console.error("Error updating synth:", e)
+				console.error("Error updating synth params:", e)
 			}
 		}
 		// Update / (re)create filter if parameters changed significantly
