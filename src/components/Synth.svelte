@@ -13,6 +13,7 @@
 	import SynthComponent from "./SynthComponent.svelte"
 	import DrumComponent from "./DrumComponent.svelte"
 	import Mixer from "./Mixer.svelte"
+	import ReverbControl from "./ReverbControl.svelte"
 
 	// Per-waveform perceived loudness compensation (in dB)
 	// Adjust these by ear if needed. More complex psychoacoustic weighting would
@@ -45,6 +46,12 @@
 
 	// Global reverb bus (created lazily on first ensure)
 	let globalReverb = null
+
+	// Reverb configuration (editable before generation)
+	let reverbConfig = {
+		decay: 2.8,
+		preDelay: 0.02,
+	}
 
 	// Initialize mixer channels on mount
 	onMount(() => {
@@ -148,15 +155,26 @@
 	// recreate scale if root changes
 	$: scaleNotes = notesFromScale(rootNote, pentaMinor, octaves)
 
+	// Handle reverb config changes from child component
+	function handleReverbChange() {
+		// FIXME: see if we can fix the "grumble" when changing reverb params live
+		if (globalReverb) {
+			console.log("Updating global reverb with config:", reverbConfig)
+			globalReverb.decay = reverbConfig.decay
+			globalReverb.preDelay = reverbConfig.preDelay
+		}
+	}
+
 	const ensureSynths = async () => {
 		await start()
 		if (!globalReverb) {
 			globalReverb = new Reverb({
-				decay: 2.8,
-				preDelay: 0.02,
+				decay: reverbConfig.decay,
+				preDelay: reverbConfig.preDelay,
 				wet: 1,
 			}).toDestination()
 			await globalReverb.generate()
+			console.log("Created global reverb with config:", reverbConfig)
 		}
 		// create synth instances if they don't exist and give it a channel so we can control pan/volume later
 		for (const config of synths) {
@@ -395,6 +413,12 @@
 			drumChannels={mixerDrumChannels}
 		/>
 	</div>
+</div>
+<div class="effects-section">
+	<h2>┌─ EFFECTS ─┐</h2>
+	{#if reverbConfig}
+		<ReverbControl {reverbConfig} on:change={handleReverbChange} />
+	{/if}
 </div>
 
 <style>
