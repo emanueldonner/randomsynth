@@ -358,7 +358,7 @@
 </script>
 
 <div class="header">
-	<h1>┌─ RandomProbabilityOnlineSynth RPOS v0.2 ─┐</h1>
+	<h1>┌─ RandomProbabilityOnlineSynth RPOS v0.1.0 ─┐</h1>
 	<div class="global-settings">
 		<label for="bpm">BPM: {bpm}</label>
 		<input type="range" id="bpm" min="50" max="280" bind:value={bpm} />
