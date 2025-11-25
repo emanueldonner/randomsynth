@@ -1,5 +1,5 @@
 ---
-
+import Synth from "../components/Synth.svelte"
 ---
 
 <html lang="en">
@@ -8,9 +8,150 @@
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
+		<title>RandomProbabilitySynth</title>
 	</head>
 	<body>
-		<h1>Astro</h1>
+		<div class="container">
+			<Synth client:load />
+		</div>
 	</body>
 </html>
+
+<style is:global>
+	:root {
+		/* 8-bit color palette */
+		--bg-primary: #0d1b0d;
+		--bg-secondary: #1a2e1a;
+		--bg-tertiary: #1a2e1a7c;
+
+		--text-primary: #78ff9e;
+		--text-secondary: #5acc7a;
+		--text-dim: #3d7a52;
+
+		--accent-synth: #78ff9e;
+		--accent-drum: #f5e748;
+		--accent-main: #ff78dd;
+		--accent-hover: #a0ffc0;
+
+		--border-primary: #78ff9e;
+		--border-secondary: #3d7a52;
+
+		--border-muted: #963737;
+
+		/* Spacing */
+		--gap-sm: 0.5rem;
+		--gap-md: 1rem;
+		--gap-lg: 1.5rem;
+
+		/* Border radius */
+		--radius-sm: 2px;
+		--radius-md: 4px;
+	}
+
+	body,
+	html {
+		font-family: "Courier New", Courier, monospace;
+		font-size: 14px;
+		margin: 0;
+		padding: 0;
+		height: 100%;
+		width: 100%;
+		background: var(--bg-primary);
+		color: var(--text-primary);
+		line-height: 1.4;
+	}
+
+	/* Global button styling */
+	button {
+		font-family: inherit;
+		background: var(--bg-secondary);
+		color: var(--text-primary);
+		border: 1px solid var(--border-primary);
+		padding: 0.5rem 1rem;
+		cursor: pointer;
+		text-transform: uppercase;
+		font-size: 0.85rem;
+		letter-spacing: 0.05em;
+		border-radius: var(--radius-sm);
+		transition: all 0.1s;
+	}
+
+	button:hover {
+		background: var(--bg-tertiary);
+		color: var(--accent-hover);
+		border-color: var(--accent-hover);
+	}
+
+	button:active {
+		transform: translateY(1px);
+	}
+
+	/* Global input styling */
+	input[type="range"] {
+		-webkit-appearance: none;
+		appearance: none;
+		background: var(--bg-secondary);
+		border: 1px solid var(--border-secondary);
+		height: 4px;
+		border-radius: var(--radius-sm);
+	}
+
+	input[type="range"]::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 12px;
+		height: 12px;
+		background: var(--accent-synth);
+		cursor: pointer;
+		border: 1px solid var(--border-primary);
+		box-shadow: 0 0 4px var(--accent-synth);
+	}
+
+	input[type="range"]::-moz-range-thumb {
+		width: 12px;
+		height: 12px;
+		background: var(--accent-synth);
+		cursor: pointer;
+		border: 1px solid var(--border-primary);
+		box-shadow: 0 0 4px var(--accent-synth);
+		border-radius: 0;
+	}
+
+	input[type="number"],
+	select {
+		font-family: inherit;
+		background: var(--bg-secondary);
+		color: var(--text-primary);
+		border: 1px solid var(--border-secondary);
+		padding: 0.25rem 0.5rem;
+		border-radius: var(--radius-sm);
+	}
+
+	input[type="checkbox"],
+	input[type="radio"] {
+		accent-color: var(--accent-synth);
+	}
+
+	label {
+		font-size: 0.85rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-secondary);
+	}
+
+	h2,
+	h3 {
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--text-primary);
+		text-shadow: 0 0 8px var(--accent-synth);
+		margin: 0;
+	}
+
+	.container {
+		margin: 0 auto;
+		padding: var(--gap-md);
+		max-width: 1600px;
+		text-align: center;
+	}
+</style>
