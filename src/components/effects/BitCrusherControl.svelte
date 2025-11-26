@@ -1,6 +1,6 @@
 <script>
 	import { createEventDispatcher } from "svelte"
-	import ModuleContainer from "./ModuleContainer.svelte"
+	import ModuleContainer from "../ModuleContainer.svelte"
 
 	export let bitCrusherConfig
 

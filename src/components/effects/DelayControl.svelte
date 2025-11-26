@@ -1,5 +1,5 @@
 <script>
-	import ModuleContainer from "./ModuleContainer.svelte"
+	import ModuleContainer from "../ModuleContainer.svelte"
 	import { createEventDispatcher } from "svelte"
 	import Icon from "@iconify/svelte"
 	export let delayConfig

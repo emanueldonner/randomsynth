@@ -22,9 +22,9 @@
 	import SynthComponent from "./SynthComponent.svelte"
 	import DrumComponent from "./DrumComponent.svelte"
 	import Mixer from "./Mixer.svelte"
-	import ReverbControl from "./ReverbControl.svelte"
-	import DelayControl from "./DelayControl.svelte"
-	import BitCrusherControl from "./BitCrusherControl.svelte"
+	import ReverbControl from "./effects/ReverbControl.svelte"
+	import DelayControl from "./effects/DelayControl.svelte"
+	import BitCrusherControl from "./effects/BitCrusherControl.svelte"
 	import LFOControl from "./LFOControl.svelte"
 	import SynthEngine from "./SynthEngine.svelte"
 
@@ -221,12 +221,28 @@
 	$: scaleNotes = notesFromScale(rootNote, pentaMinor, octaves)
 
 	// Handle reverb config changes from child component
-	function handleReverbChange() {}
+	function handleReverbChange() {
+		console.log("handleReverbChange called with config:", reverbConfig)
+		if (engineRef) engineRef.handleReverbChange()
+	}
 	// Handle delay config changes from child component
-	function handleDelayChange() {}
+	function handleDelayChange() {
+		console.log("handleDelayChange called with config:", delayConfig)
+		console.log("engineRef:", engineRef)
+		console.log("engineRef.handleDelayChange:", engineRef?.handleDelayChange)
+		if (engineRef && typeof engineRef.handleDelayChange === "function") {
+			engineRef.handleDelayChange()
+		} else {
+			console.warn("engineRef.handleDelayChange not available")
+		}
+	}
 	// Handle bitCrusher config changes from child component
-	function handleBitCrusherChange() {}
-	function handleLFOChange() {}
+	function handleBitCrusherChange() {
+		if (engineRef) engineRef.handleBitCrusherChange()
+	}
+	function handleLFOChange() {
+		if (engineRef) engineRef.handleLFOChange()
+	}
 
 	// Audio graph now handled by SynthEngine
 

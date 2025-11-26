@@ -57,26 +57,30 @@
 		config.instance.volume.value = comp
 	}
 
-	function handleReverbChange() {
+	export function handleReverbChange() {
 		if (globalReverb) {
+			console.log("SynthEngine updating reverb:", reverbConfig)
 			globalReverb.decay = reverbConfig.decay
 			globalReverb.preDelay = reverbConfig.preDelay
 		}
 	}
-	function handleDelayChange() {
+	export function handleDelayChange() {
 		if (globalDelay) {
+			console.log("SynthEngine updating delay:", delayConfig)
 			globalDelay.delayTime.value = delayConfig.delayTime
 			globalDelay.feedback.value = delayConfig.feedback
 		}
 	}
-	function handleBitCrusherChange() {
+	export function handleBitCrusherChange() {
 		if (globalBitCrusher) {
+			console.log("SynthEngine updating bitCrusher:", bitCrusherConfig)
 			globalBitCrusher.bits = bitCrusherConfig.bits
 			globalBitCrusher.wet.value = bitCrusherConfig.wet
 		}
 	}
-	function handleLFOChange() {
+	export function handleLFOChange() {
 		if (globalLFO) {
+			console.log("SynthEngine updating LFO:", lfoConfig)
 			globalLFO.frequency.rampTo(lfoConfig.frequency, 0.1)
 			globalLFO.type = lfoConfig.type
 		}
@@ -512,11 +516,7 @@
 		} catch (e) {}
 	}
 
-	// Bubble config changes from parent controls
-	$: handleReverbChange()
-	$: handleDelayChange()
-	$: handleBitCrusherChange()
-	$: handleLFOChange()
+	// Config changes now handled via explicit function calls from parent
 </script>
 
 <!-- This component has no UI; it manages Tone graph and loops -->
