@@ -558,13 +558,25 @@
 	}
 
 	.bottom-section {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		padding: 0 var(--gap-lg);
+		background: rgba(20, 20, 20, 0.95);
+		border-top: 2px solid var(--border-primary);
 		display: flex;
 		gap: var(--gap-lg);
 		flex-wrap: wrap;
 		justify-content: center;
-		width: fit-content;
+		/* width: fit-content; */
 		margin: 0 auto;
 		/* align-items: center; */
+		transform: translateY(90%);
+		transition: transform 0.3s ease-out;
+	}
+	.bottom-section:hover {
+		transform: translateY(0);
 	}
 	.effects-container {
 		display: flex;
@@ -577,5 +589,108 @@
 		display: flex;
 		gap: var(--gap-md);
 		flex-wrap: wrap;
+	}
+
+	/* Mobile styles */
+	@media (max-width: 968px) {
+		.bottom-section {
+			flex-direction: column;
+			align-items: stretch;
+			transform: translateY(0);
+			position: relative;
+			padding: var(--gap-md);
+			gap: var(--gap-md);
+		}
+
+		.mixer-section,
+		.group-column {
+			width: 100%;
+		}
+
+		.effects-container {
+			flex-direction: column;
+			width: 100%;
+		}
+
+		.synth-grid {
+			justify-content: center;
+		}
+	}
+
+	@media (max-width: 768px) {
+		h1 {
+			font-size: 1.2rem;
+			letter-spacing: 0.1em;
+		}
+
+		h2 {
+			font-size: 1rem;
+		}
+
+		.global-settings {
+			flex-direction: column;
+			width: 100%;
+			gap: var(--gap-sm);
+		}
+
+		.global-settings label {
+			min-width: unset;
+			width: 100%;
+		}
+
+		.global-settings input[type="range"] {
+			min-width: unset;
+			width: 100%;
+		}
+
+		.drum-section,
+		.synth-section {
+			margin-bottom: var(--gap-md);
+		}
+
+		.synth-grid {
+			gap: var(--gap-sm);
+		}
+
+		.bottom-section {
+			padding: var(--gap-sm);
+		}
+
+		.bottom-section:hover {
+			transform: translateY(0);
+		}
+	}
+
+	@media (max-width: 480px) {
+		h1 {
+			font-size: 1rem;
+			margin-bottom: var(--gap-sm);
+		}
+
+		h2 {
+			font-size: 0.9rem;
+			margin: var(--gap-md) 0 var(--gap-sm) 0;
+		}
+
+		.header {
+			margin-bottom: var(--gap-md);
+		}
+
+		.global-settings {
+			padding: var(--gap-sm);
+		}
+
+		.global-settings button {
+			width: 100%;
+			padding: var(--gap-sm);
+		}
+
+		.bottom-section {
+			gap: var(--gap-sm);
+		}
+
+		.effects-container {
+			gap: var(--gap-sm);
+		}
 	}
 </style>
