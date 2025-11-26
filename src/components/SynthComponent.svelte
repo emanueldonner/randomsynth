@@ -61,6 +61,9 @@
 		clampOctaves()
 		dispatch("change", synthConfig)
 	}
+
+	// Ensure default LFO depth field exists
+	if (synthConfig.lfoCutoffDepth === undefined) synthConfig.lfoCutoffDepth = 0
 </script>
 
 <ModuleContainer
@@ -206,6 +209,7 @@
 				<div class="fader-row">
 					<label class="mini">
 						A
+
 						<input
 							type="range"
 							min="0.01"
@@ -262,6 +266,19 @@
 			<div class="module"> -->
 				<div class="module-title">FILTER</div>
 				<div class="fader-row">
+					<label class="mini">
+						LFO
+						<input
+							type="range"
+							min="0"
+							max="1"
+							step="0.01"
+							orient="vertical"
+							bind:value={synthConfig.lfoCutoffDepth}
+							on:input={notifyChange}
+						/>
+						{(synthConfig.lfoCutoffDepth * 100).toFixed(0)}%
+					</label>
 					<label class="mini">
 						Cutoff
 						<input

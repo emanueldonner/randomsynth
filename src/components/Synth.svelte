@@ -6,7 +6,7 @@
 		getTransport,
 		Channel,
 		Loop,
-		Envelope,
+		LFO,
 		Filter,
 		Reverb,
 		PingPongDelay,
@@ -15,6 +15,8 @@
 		WaveShaper,
 		Gain,
 		getDestination,
+		Add,
+		Multiply,
 	} from "tone"
 	import { onMount } from "svelte"
 	import SynthComponent from "./SynthComponent.svelte"
@@ -23,6 +25,7 @@
 	import ReverbControl from "./ReverbControl.svelte"
 	import DelayControl from "./DelayControl.svelte"
 	import BitCrusherControl from "./BitCrusherControl.svelte"
+	import LFOControl from "./LFOControl.svelte"
 
 	// Per-waveform perceived loudness compensation (in dB)
 	// Adjust these by ear if needed. More complex psychoacoustic weighting would
@@ -64,6 +67,7 @@
 	let globalBitCrusher = null
 	let masterCompressor = null
 	let masterSaturation = null
+	let globalLFO = null
 	// Effect chain order: "parallel" (both to destination) or "delay-reverb" or "reverb-delay"
 	let effectChain = "parallel" // TODO: make effect-chain user-selectable
 	// Reverb configuration (editable before generation)
@@ -78,6 +82,10 @@
 	let bitCrusherConfig = {
 		bits: 4, // global bit depth
 		wet: 1, // global wet mix (BitCrusher's internal wet)
+	}
+	let lfoConfig = {
+		frequency: 0.5,
+		type: "sine",
 	}
 
 	// Initialize mixer channels on mount
@@ -239,6 +247,21 @@
 			globalBitCrusher.wet.value = bitCrusherConfig.wet
 		}
 	}
+	function handleLFOChange() {
+		if (globalLFO) {
+			// Use rampTo for smooth parameter changes
+			globalLFO.frequency.rampTo(lfoConfig.frequency, 0.1)
+			globalLFO.type = lfoConfig.type
+			console.log(
+				"Updated global LFO frequency to",
+				lfoConfig.frequency,
+				"Hz, type:",
+				lfoConfig.type
+			)
+		} else {
+			console.warn("globalLFO not initialized yet")
+		}
+	}
 
 	const ensureSynths = async () => {
 		await start()
@@ -334,6 +357,17 @@
 			globalBitCrusher.connect(masterCompressor)
 			console.log("Created master compressor with saturation")
 		}
+		// Create global LFO (single modulation source) if not exists
+		if (!globalLFO) {
+			globalLFO = new LFO({
+				frequency: lfoConfig.frequency,
+				type: lfoConfig.type,
+				min: -1,
+				max: 1,
+			})
+			globalLFO.start()
+			console.log("Created global LFO")
+		}
 		// create synth instances if they don't exist and give it a channel so we can control pan/volume later
 		for (const config of synths) {
 			if (!config.instance) {
@@ -389,6 +423,21 @@
 				console.log(
 					`Connected ${config.name} chain (filter=${!!config.filter}) to outputs + globalBitCrusher send`
 				)
+				// Per-synth LFO modulation setup (filter cutoff)
+				if (config.lfoCutoffDepth === undefined) config.lfoCutoffDepth = 0
+				if (config.filter && config.lfoCutoffDepth > 0 && !config.lfoMod) {
+					const depthHz = Math.max(
+						5,
+						config.filterCutoff * config.lfoCutoffDepth
+					)
+					const mult = new Multiply(depthHz)
+					const add = new Add(config.filterCutoff)
+					globalLFO.connect(mult)
+					mult.connect(add)
+					add.connect(config.filter.frequency)
+					config.lfoMod = { mult, add }
+					console.log(`LFO modulation enabled for ${config.name}`)
+				}
 				// Apply loudness compensation after creation
 				applyShapeComp(config)
 			}
@@ -403,6 +452,34 @@
 			}
 			if (config.bitCrusherGain)
 				config.bitCrusherGain.gain.value = config.bitCrusherSend || 0
+			// Update existing LFO modulation scaling if active
+			if (config.filter) {
+				if (config.lfoCutoffDepth > 0) {
+					const depthHz = Math.max(
+						5,
+						config.filterCutoff * config.lfoCutoffDepth
+					)
+					if (!config.lfoMod) {
+						const mult = new Multiply(depthHz)
+						const add = new Add(config.filterCutoff)
+						globalLFO.connect(mult)
+						mult.connect(add)
+						add.connect(config.filter.frequency)
+						config.lfoMod = { mult, add }
+						console.log(`LFO modulation enabled (late) for ${config.name}`)
+					} else {
+						config.lfoMod.mult.factor.value = depthHz
+						config.lfoMod.add.addend.value = config.filterCutoff
+					}
+				} else if (config.lfoMod) {
+					try {
+						config.lfoMod.mult.dispose()
+						config.lfoMod.add.dispose()
+					} catch {}
+					config.lfoMod = null
+					console.log(`LFO modulation disabled for ${config.name}`)
+				}
+			}
 		}
 		// Update mixer channel references with created channels
 		mixerSynthChannels.forEach((mixerCh) => {
@@ -457,7 +534,10 @@
 		if (config.filterCutoff !== undefined && config.filterQ !== undefined) {
 			// If filter node exists update params; else if cutoff > 20 create it and rewire
 			if (config.filter) {
-				config.filter.frequency.value = Math.max(config.filterCutoff, 20)
+				// Only set frequency directly if NOT using LFO modulation
+				if (!config.lfoMod) {
+					config.filter.frequency.value = Math.max(config.filterCutoff, 20)
+				}
 				config.filter.Q.value = config.filterQ
 			} else if (config.filterCutoff > 20 && config.instance) {
 				config.filter = new Filter(config.filterCutoff, "lowpass")
@@ -476,9 +556,40 @@
 		// Update BitCrusher send gain
 		if (config.bitCrusherGain)
 			config.bitCrusherGain.gain.value = config.bitCrusherSend || 0
-		// Update filter parameters
+
+		// Handle LFO modulation for cutoff (create/update/destroy chain)
+		if (config.filter && config.lfoCutoffDepth !== undefined) {
+			if (config.lfoCutoffDepth > 0) {
+				const depthHz = Math.max(5, config.filterCutoff * config.lfoCutoffDepth)
+				if (!config.lfoMod && globalLFO) {
+					// Create modulation chain
+					const mult = new Multiply(depthHz)
+					const add = new Add(config.filterCutoff)
+					globalLFO.connect(mult)
+					mult.connect(add)
+					add.connect(config.filter.frequency)
+					config.lfoMod = { mult, add }
+					console.log(`LFO modulation enabled for ${config.name}`)
+				} else if (config.lfoMod) {
+					// Update existing modulation scaling
+					config.lfoMod.mult.factor.value = depthHz
+					config.lfoMod.add.addend.value = config.filterCutoff
+				}
+			} else if (config.lfoMod) {
+				// Remove modulation chain and restore direct control
+				try {
+					config.lfoMod.mult.dispose()
+					config.lfoMod.add.dispose()
+				} catch {}
+				config.lfoMod = null
+				// Restore direct frequency control
+				config.filter.frequency.value = config.filterCutoff
+				console.log(`LFO modulation disabled for ${config.name}`)
+			}
+		}
+
+		// Update filter Q (always safe)
 		if (config.filter) {
-			config.filter.frequency.value = config.filterCutoff
 			config.filter.Q.value = config.filterQ
 		}
 		// Reverb send: update gain node directly (mixer will handle UI sync)
@@ -670,21 +781,27 @@
 			{masterCompressor}
 		/>
 	</div>
-	<div class="effects-section">
-		<h2>┌─ GLOBAL EFFECTS ─┐</h2>
-		<div class="effects-container">
-			{#if bitCrusherConfig}
-				<BitCrusherControl
-					{bitCrusherConfig}
-					on:change={handleBitCrusherChange}
-				/>
-			{/if}
-			{#if delayConfig}
-				<DelayControl {delayConfig} on:change={handleDelayChange} />
-			{/if}
-			{#if reverbConfig}
-				<ReverbControl {reverbConfig} on:change={handleReverbChange} />
-			{/if}
+	<div class="group-column">
+		<div class="effects-section">
+			<h2>┌─ GLOBAL EFFECTS ─┐</h2>
+			<div class="effects-container">
+				{#if bitCrusherConfig}
+					<BitCrusherControl
+						{bitCrusherConfig}
+						on:change={handleBitCrusherChange}
+					/>
+				{/if}
+				{#if delayConfig}
+					<DelayControl {delayConfig} on:change={handleDelayChange} />
+				{/if}
+				{#if reverbConfig}
+					<ReverbControl {reverbConfig} on:change={handleReverbChange} />
+				{/if}
+			</div>
+		</div>
+		<div class="modulation-section">
+			<h2>┌─ MODULATION ─┐</h2>
+			<LFOControl {lfoConfig} on:change={handleLFOChange} />
 		</div>
 	</div>
 </div>
