@@ -26,6 +26,7 @@
 	import DelayControl from "./DelayControl.svelte"
 	import BitCrusherControl from "./BitCrusherControl.svelte"
 	import LFOControl from "./LFOControl.svelte"
+	import SynthEngine from "./SynthEngine.svelte"
 
 	// Per-waveform perceived loudness compensation (in dB)
 	// Adjust these by ear if needed. More complex psychoacoustic weighting would
@@ -66,10 +67,7 @@
 	let globalDelay = null
 	let globalBitCrusher = null
 	let masterCompressor = null
-	let masterSaturation = null
 	let globalLFO = null
-	// Effect chain order: "parallel" (both to destination) or "delay-reverb" or "reverb-delay"
-	let effectChain = "parallel" // TODO: make effect-chain user-selectable
 	// Reverb configuration (editable before generation)
 	let reverbConfig = {
 		decay: 2.8,
@@ -223,280 +221,14 @@
 	$: scaleNotes = notesFromScale(rootNote, pentaMinor, octaves)
 
 	// Handle reverb config changes from child component
-	function handleReverbChange() {
-		// FIXME: see if we can fix the "grumble" when changing reverb params live
-		if (globalReverb) {
-			console.log("Updating global reverb with config:", reverbConfig)
-			globalReverb.decay = reverbConfig.decay
-			globalReverb.preDelay = reverbConfig.preDelay
-		}
-	}
+	function handleReverbChange() {}
 	// Handle delay config changes from child component
-	function handleDelayChange() {
-		if (globalDelay) {
-			console.log("Updating global delay with config:", delayConfig)
-			globalDelay.delayTime.value = delayConfig.delayTime
-			globalDelay.feedback.value = delayConfig.feedback
-		}
-	}
+	function handleDelayChange() {}
 	// Handle bitCrusher config changes from child component
-	function handleBitCrusherChange() {
-		if (globalBitCrusher) {
-			console.log("Updating global bitCrusher with config:", bitCrusherConfig)
-			globalBitCrusher.bits = bitCrusherConfig.bits
-			globalBitCrusher.wet.value = bitCrusherConfig.wet
-		}
-	}
-	function handleLFOChange() {
-		if (globalLFO) {
-			// Use rampTo for smooth parameter changes
-			globalLFO.frequency.rampTo(lfoConfig.frequency, 0.1)
-			globalLFO.type = lfoConfig.type
-			console.log(
-				"Updated global LFO frequency to",
-				lfoConfig.frequency,
-				"Hz, type:",
-				lfoConfig.type
-			)
-		} else {
-			console.warn("globalLFO not initialized yet")
-		}
-	}
+	function handleBitCrusherChange() {}
+	function handleLFOChange() {}
 
-	const ensureSynths = async () => {
-		await start()
-
-		// Create effects based on chain order
-		if (!globalReverb && !globalDelay) {
-			if (effectChain === "parallel") {
-				// Both effects go to destination
-				globalReverb = new Reverb({
-					decay: reverbConfig.decay,
-					preDelay: reverbConfig.preDelay,
-					wet: 1,
-				}).toDestination()
-				await globalReverb.generate()
-
-				globalDelay = new PingPongDelay({
-					delayTime: delayConfig.delayTime,
-					feedback: delayConfig.feedback,
-				}).toDestination()
-				globalDelay.wet.value = 1
-			} else if (effectChain === "delay-reverb") {
-				// Delay feeds into reverb
-				globalReverb = new Reverb({
-					decay: reverbConfig.decay,
-					preDelay: reverbConfig.preDelay,
-					wet: 1,
-				}).toDestination()
-				await globalReverb.generate()
-
-				globalDelay = new PingPongDelay({
-					delayTime: delayConfig.delayTime,
-					feedback: delayConfig.feedback,
-				}).connect(globalReverb)
-				globalDelay.wet.value = 1
-			} else if (effectChain === "reverb-delay") {
-				// Reverb feeds into delay
-				globalDelay = new PingPongDelay({
-					delayTime: delayConfig.delayTime,
-					feedback: delayConfig.feedback,
-				}).toDestination()
-				globalDelay.wet.value = 1
-
-				globalReverb = new Reverb({
-					decay: reverbConfig.decay,
-					preDelay: reverbConfig.preDelay,
-					wet: 1,
-				}).connect(globalDelay)
-				await globalReverb.generate()
-			}
-			console.log(`Created effects chain: ${effectChain}`)
-		}
-		// Create global BitCrusher (always parallel) if not exists
-		if (!globalBitCrusher) {
-			globalBitCrusher = new BitCrusher(bitCrusherConfig.bits)
-			globalBitCrusher.wet.value = bitCrusherConfig.wet
-			globalBitCrusher.toDestination()
-			console.log("Created global BitCrusher")
-		}
-		// Create master saturation (more audible soft-clipping for warmth)
-		if (!masterSaturation) {
-			// Soft saturation curve with more drive for audible warmth
-			const makeSaturationCurve = (amount = 1.5) => {
-				const samples = 1024
-				const curve = new Float32Array(samples)
-				for (let i = 0; i < samples; i++) {
-					const x = (i * 2) / samples - 1
-					// Aggressive tanh curve for warm saturation
-					const drive = 1 + amount * 3
-					curve[i] = Math.tanh(x * drive) / Math.tanh(drive)
-				}
-				return curve
-			}
-			masterSaturation = new WaveShaper(makeSaturationCurve(1.5))
-			masterSaturation.oversample = "4x" // Higher oversampling for better quality
-		}
-		// Create master compressor on main output if not exists
-		if (!masterCompressor) {
-			masterCompressor = new Compressor({
-				threshold: -30,
-				ratio: 12,
-				attack: 0.003,
-				release: 0.1,
-				knee: 10,
-			})
-				.connect(masterSaturation)
-				.connect(getDestination())
-			// Reconnect all effect buses through compressor
-			globalReverb.disconnect()
-			globalReverb.connect(masterCompressor)
-			globalDelay.disconnect()
-			globalDelay.connect(masterCompressor)
-			globalBitCrusher.disconnect()
-			globalBitCrusher.connect(masterCompressor)
-			console.log("Created master compressor with saturation")
-		}
-		// Create global LFO (single modulation source) if not exists
-		if (!globalLFO) {
-			globalLFO = new LFO({
-				frequency: lfoConfig.frequency,
-				type: lfoConfig.type,
-				min: -1,
-				max: 1,
-			})
-			globalLFO.start()
-			console.log("Created global LFO")
-		}
-		// create synth instances if they don't exist and give it a channel so we can control pan/volume later
-		for (const config of synths) {
-			if (!config.instance) {
-				console.log(`Creating synth ${config.name} with shape:`, config.shape)
-				config.channel = new Channel().connect(masterCompressor)
-				config.channel.pan.value = config.pan
-				// Initialize solo state on Tone.Channel if provided
-				try {
-					config.channel.solo = !!config.isSoloed
-				} catch {}
-				config.sendGain = new Gain().connect(globalReverb)
-				config.sendGain.gain.value = config.reverbSend
-				config.delayGain = new Gain().connect(globalDelay)
-				config.delayGain.gain.value = config.delaySend
-				console.log(
-					`Created delayGain for ${config.name}:`,
-					config.delayGain,
-					"initial value:",
-					config.delaySend,
-					"connected to:",
-					globalDelay
-				)
-				// Create synth with default oscillator type and envelope
-				const oscillatorType = config.shape || "sine"
-				config.instance = new Synth({
-					oscillator: { type: oscillatorType },
-					envelope: config.envelope,
-				})
-
-				// Create filter node (lowpass). If cutoff <= 20 treat as bypass (skip attaching).
-				if (!config.filter) {
-					if (config.filterCutoff && config.filterCutoff > 20) {
-						config.filter = new Filter(config.filterCutoff, "lowpass")
-						config.filter.Q.value = config.filterQ || 1
-						// Route synth -> filter -> channel & sends
-						config.instance.connect(config.filter)
-					} else {
-						// Bypass: no filter node
-					}
-				}
-				// Build final chain (optional filter) and connect to outputs
-				let sourceNode = config.filter || config.instance
-				sourceNode.connect(config.channel)
-				sourceNode.connect(config.sendGain)
-				sourceNode.connect(config.delayGain)
-				// BitCrusher send gain (parallel)
-				if (!config.bitCrusherGain) {
-					config.bitCrusherGain = new Gain(config.bitCrusherSend).connect(
-						globalBitCrusher
-					)
-				}
-				sourceNode.connect(config.bitCrusherGain)
-				console.log(
-					`Connected ${config.name} chain (filter=${!!config.filter}) to outputs + globalBitCrusher send`
-				)
-				// Per-synth LFO modulation setup (filter cutoff)
-				if (config.lfoCutoffDepth === undefined) config.lfoCutoffDepth = 0
-				if (config.filter && config.lfoCutoffDepth > 0 && !config.lfoMod) {
-					const depthHz = Math.max(
-						5,
-						config.filterCutoff * config.lfoCutoffDepth
-					)
-					const mult = new Multiply(depthHz)
-					const add = new Add(config.filterCutoff)
-					globalLFO.connect(mult)
-					mult.connect(add)
-					add.connect(config.filter.frequency)
-					config.lfoMod = { mult, add }
-					console.log(`LFO modulation enabled for ${config.name}`)
-				}
-				// Apply loudness compensation after creation
-				applyShapeComp(config)
-			}
-			// ensure send gain reflects current reverbSend and delaySend
-			if (config.sendGain) config.sendGain.gain.value = config.reverbSend
-			if (config.delayGain) {
-				config.delayGain.gain.value = config.delaySend
-				console.log(
-					`${config.name} delayGain set to ${config.delaySend}`,
-					config.delayGain
-				)
-			}
-			if (config.bitCrusherGain)
-				config.bitCrusherGain.gain.value = config.bitCrusherSend || 0
-			// Update existing LFO modulation scaling if active
-			if (config.filter) {
-				if (config.lfoCutoffDepth > 0) {
-					const depthHz = Math.max(
-						5,
-						config.filterCutoff * config.lfoCutoffDepth
-					)
-					if (!config.lfoMod) {
-						const mult = new Multiply(depthHz)
-						const add = new Add(config.filterCutoff)
-						globalLFO.connect(mult)
-						mult.connect(add)
-						add.connect(config.filter.frequency)
-						config.lfoMod = { mult, add }
-						console.log(`LFO modulation enabled (late) for ${config.name}`)
-					} else {
-						config.lfoMod.mult.factor.value = depthHz
-						config.lfoMod.add.addend.value = config.filterCutoff
-					}
-				} else if (config.lfoMod) {
-					try {
-						config.lfoMod.mult.dispose()
-						config.lfoMod.add.dispose()
-					} catch {}
-					config.lfoMod = null
-					console.log(`LFO modulation disabled for ${config.name}`)
-				}
-			}
-		}
-		// Update mixer channel references with created channels
-		mixerSynthChannels.forEach((mixerCh) => {
-			const config = mixerCh.configRef
-			if (config && config.channel) {
-				mixerCh.channel = config.channel
-				mixerCh.sendGain = config.sendGain
-				mixerCh.reverbSend = config.reverbSend
-				mixerCh.delayGain = config.delayGain
-				mixerCh.delaySend = config.delaySend
-				mixerCh.bitCrusherGain = config.bitCrusherGain
-				mixerCh.bitCrusherSend = config.bitCrusherSend
-			}
-		})
-		// Trigger reactivity
-		mixerSynthChannels = mixerSynthChannels
-	}
+	// Audio graph now handled by SynthEngine
 
 	// Handle changes from child components
 	function handleSynthChange(event) {
@@ -607,10 +339,11 @@
 		if (config.bitCrusherGain) {
 			config.bitCrusherGain.gain.value = config.bitCrusherSend || 0
 		}
-		// If stepInterval changed while playing, rebuild that loop for immediate effect
-		if (isPlaying && config.loop) {
-			// always rebuild on change event to guarantee applied
-			rebuildLoop(config)
+		// Engine will handle loop rebuilds
+
+		// Forward changes to audio engine so live playback reflects updates
+		if (engineRef && typeof engineRef.handleSynthChange === "function") {
+			engineRef.handleSynthChange(event)
 		}
 	}
 
@@ -688,54 +421,17 @@
 		}
 	}
 
+	let engineRef
 	const startStopLoop = async () => {
-		const transport = getTransport()
-		if (!isPlaying) {
-			await ensureSynths()
-			transport.bpm.value = bpm
-			// start individual loops for each synth
-			for (const config of synths) {
-				startLoopForSynth(config)
-			}
-			// start drums
-			if (drumComponentRef) {
-				await drumComponentRef.startDrums()
-			}
-			transport.start()
-			isPlaying = true
-		} else {
-			// stop all synth loops
-			transport.stop()
-			for (const config of synths) {
-				stopLoopForSynth(config)
-			}
-			// stop drums
-			if (drumComponentRef) {
-				drumComponentRef.stopDrums()
-			}
-			isPlaying = false
-		}
+		if (engineRef) engineRef.startStopLoop(drumComponentRef)
+		isPlaying = !isPlaying
 	}
 
 	// update BPM dynamically when it changes
-	$: if (isPlaying && bpm) {
-		try {
-			getTransport().bpm.value = bpm
-			// Update delay time to sync with new BPM
-			if (globalDelay && delayConfig.delayTime) {
-				globalDelay.delayTime.value = delayConfig.delayTime
-			}
-		} catch (e) {
-			// ignore if transport not ready
-		}
-	}
+	// BPM syncing handled inside SynthEngine
 
 	// dynamically update loop interval when stepInterval changes without restarting
-	function rebuildLoop(config) {
-		// dispose existing loop and create a new one with updated interval
-		stopLoopForSynth(config)
-		startLoopForSynth(config)
-	}
+	function rebuildLoop(config) {}
 
 	// (Removed automatic polling of stepInterval; handled via explicit change events for precision)
 </script>
@@ -805,6 +501,25 @@
 		</div>
 	</div>
 </div>
+
+<!-- Invisible audio engine manager -->
+<SynthEngine
+	bind:this={engineRef}
+	{bpm}
+	{synths}
+	{reverbConfig}
+	{delayConfig}
+	{bitCrusherConfig}
+	{lfoConfig}
+	bind:mixerSynthChannels
+	on:engine-ready={(e) => {
+		globalReverb = e.detail.globalReverb
+		globalDelay = e.detail.globalDelay
+		globalBitCrusher = e.detail.globalBitCrusher
+		masterCompressor = e.detail.masterCompressor
+		globalLFO = e.detail.globalLFO
+	}}
+/>
 
 <style>
 	.header {
